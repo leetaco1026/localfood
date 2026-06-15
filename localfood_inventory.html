@@ -1,0 +1,745 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="로컬푸드">
+<meta name="theme-color" content="#ffffff">
+<title>로컬푸드 재고관리</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
+<script src="https://cdn.jsdelivr.net/npm/quagga@0.12.1/dist/quagga.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; background: #f5f5f0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+  .app { max-width: 480px; margin: 0 auto; min-height: 100vh; display: flex; flex-direction: column; background: #f5f5f0; }
+  .header { background: #fff; border-bottom: 0.5px solid #e0e0e0; padding: 14px 16px; display: flex; align-items: center; gap: 10px; position: sticky; top: 0; z-index: 100; }
+  .header h1 { font-size: 17px; font-weight: 600; color: #111; flex: 1; }
+  .tabs { background: #fff; display: flex; border-bottom: 0.5px solid #e0e0e0; position: sticky; top: 53px; z-index: 99; }
+  .tab { flex: 1; padding: 11px 4px 9px; text-align: center; font-size: 11px; color: #999; border: none; background: none; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 3px; border-bottom: 2px solid transparent; }
+  .tab i { font-size: 20px; }
+  .tab.active { color: #185fa5; border-bottom-color: #185fa5; }
+  .content { flex: 1; padding: 12px; overflow-y: auto; padding-bottom: 80px; }
+  .screen { display: none; }
+  .screen.active { display: block; }
+  .card { background: #fff; border-radius: 14px; border: 0.5px solid #e8e8e8; padding: 14px 16px; margin-bottom: 12px; }
+  .card-title { font-size: 13px; color: #888; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; font-weight: 500; }
+
+  /* 바코드 스캐너 */
+  .scanner-box { width: 100%; aspect-ratio: 4/3; background: #111; border-radius: 12px; position: relative; overflow: hidden; margin-bottom: 12px; }
+  #interactive { width: 100%; height: 100%; }
+  #interactive video { width: 100%; height: 100%; object-fit: cover; }
+  #interactive canvas { display: none; }
+  .scanner-overlay { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; pointer-events: none; }
+  .scanner-frame { width: 70%; height: 35%; border: 2px solid rgba(56,138,221,0.9); border-radius: 10px; position: relative; }
+  .scanner-frame::before { content: ''; position: absolute; left: 0; right: 0; top: 50%; height: 2px; background: linear-gradient(90deg, transparent, #378add, transparent); animation: sweep 1.5s ease-in-out infinite; }
+  @keyframes sweep { 0%,100%{top:10%} 50%{top:85%} }
+  .corner { position: absolute; width: 16px; height: 16px; border-color: #378add; border-style: solid; }
+  .corner.tl { top: -2px; left: -2px; border-width: 3px 0 0 3px; }
+  .corner.tr { top: -2px; right: -2px; border-width: 3px 3px 0 0; }
+  .corner.bl { bottom: -2px; left: -2px; border-width: 0 0 3px 3px; }
+  .corner.br { bottom: -2px; right: -2px; border-width: 0 3px 3px 0; }
+  .scanner-hint { font-size: 12px; color: rgba(255,255,255,0.6); margin-top: 10px; }
+  .scanner-placeholder { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; }
+  .scanner-placeholder i { font-size: 48px; color: rgba(255,255,255,0.3); }
+  .scanner-placeholder p { font-size: 13px; color: rgba(255,255,255,0.4); }
+
+  /* 모드 탭 */
+  .mode-tabs { display: flex; background: #f0f0f0; border-radius: 10px; padding: 3px; margin-bottom: 12px; gap: 3px; }
+  .mode-tab { flex: 1; padding: 8px; text-align: center; font-size: 13px; font-weight: 500; color: #999; border: none; background: none; border-radius: 8px; cursor: pointer; }
+  .mode-tab.active { background: #fff; color: #111; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+
+  .btn-primary { width: 100%; padding: 13px; background: #185fa5; color: #fff; border: none; border-radius: 10px; font-size: 15px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: opacity 0.2s; }
+  .btn-primary:active { opacity: 0.8; }
+  .btn-primary.red { background: #c0392b; }
+  .btn-primary.green { background: #2e7d32; }
+  .btn-primary:disabled { opacity: 0.35; cursor: default; }
+  .btn-row { display: flex; gap: 8px; }
+  .btn-half { flex: 1; padding: 11px; border: 0.5px solid #ddd; border-radius: 10px; font-size: 14px; font-weight: 500; cursor: pointer; background: #f8f8f8; color: #333; display: flex; align-items: center; justify-content: center; gap: 6px; }
+  .btn-half.green { background: #eaf3de; color: #3b6d11; border-color: #c0dd97; }
+  .btn-half.red { background: #fcebeb; color: #a32d2d; border-color: #f7c1c1; }
+
+  /* 스캔 결과 */
+  .result-card { background: #f0f7ff; border: 1px solid #b3d4f5; border-radius: 12px; padding: 14px; margin-bottom: 12px; }
+  .result-barcode { font-family: monospace; font-size: 13px; color: #555; margin-bottom: 8px; }
+  .result-name { font-size: 16px; font-weight: 600; color: #111; margin-bottom: 4px; }
+  .result-stock { font-size: 14px; color: #555; }
+  .result-stock span { font-weight: 600; color: #185fa5; }
+
+  /* 수량 */
+  .qty-row { display: flex; align-items: center; justify-content: space-between; margin: 12px 0; }
+  .qty-label { font-size: 14px; color: #555; }
+  .qty-ctrl { display: flex; align-items: center; border: 0.5px solid #ddd; border-radius: 10px; overflow: hidden; }
+  .qty-ctrl button { width: 40px; height: 40px; border: none; background: #f5f5f5; cursor: pointer; font-size: 22px; color: #333; display: flex; align-items: center; justify-content: center; }
+  .qty-ctrl button:active { background: #e0e0e0; }
+  .qty-ctrl span { min-width: 48px; text-align: center; font-size: 18px; font-weight: 600; color: #111; }
+
+  /* 신규 등록 폼 */
+  .form-row { margin-bottom: 10px; }
+  .form-label { font-size: 12px; color: #888; margin-bottom: 4px; }
+  .form-input { width: 100%; padding: 10px 12px; border: 0.5px solid #ddd; border-radius: 8px; font-size: 14px; color: #111; background: #fafafa; font-family: inherit; }
+  .form-input:focus { outline: none; border-color: #378add; background: #fff; }
+
+  /* AI 업로드 */
+  .upload-area { border: 1.5px dashed #ccc; border-radius: 12px; padding: 22px; text-align: center; cursor: pointer; margin-bottom: 12px; }
+  .upload-area:active { background: #f5f5f5; }
+  .upload-area i { font-size: 34px; color: #aaa; }
+  .upload-area p { font-size: 13px; color: #999; margin-top: 6px; }
+  #fileInput { display: none; }
+  #previewImg { width: 100%; border-radius: 12px; margin-bottom: 12px; display: none; max-height: 220px; object-fit: contain; background: #f0f0f0; }
+  .thinking { display: flex; align-items: center; gap: 12px; padding: 14px; background: #eeedfe; border-radius: 12px; margin-bottom: 12px; }
+  .thinking i { font-size: 22px; color: #534ab7; flex-shrink: 0; }
+  .thinking p { font-size: 13px; color: #3c3489; line-height: 1.5; }
+  .dot-anim::after { content: ''; animation: dots 1.2s steps(3,end) infinite; }
+  @keyframes dots { 0%{content:''} 33%{content:'.'} 66%{content:'..'} 100%{content:'...'} }
+  .ai-result { border-radius: 10px; background: #f8f8f8; padding: 4px 12px; margin-bottom: 12px; }
+  .ai-result-row { display: flex; gap: 8px; align-items: center; padding: 9px 0; border-bottom: 0.5px solid #eee; }
+  .ai-result-row:last-child { border-bottom: none; }
+  .ai-result-label { font-size: 12px; color: #999; min-width: 60px; }
+  .ai-result-val input { width: 100%; border: 0.5px solid #ddd; border-radius: 8px; padding: 6px 10px; font-size: 14px; background: #fff; color: #111; font-family: inherit; }
+  .ai-key-row { display: flex; gap: 8px; margin-bottom: 12px; }
+  .ai-key-input { flex: 1; padding: 10px 12px; border: 0.5px solid #ddd; border-radius: 8px; font-size: 13px; font-family: monospace; background: #fafafa; color: #111; }
+  .ai-key-input:focus { outline: none; border-color: #534ab7; }
+
+  /* 재고 목록 */
+  .stats-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px; }
+  .stat-card { background: #f8f8f8; border-radius: 12px; padding: 12px 10px; text-align: center; }
+  .stat-label { font-size: 11px; color: #999; margin-bottom: 4px; }
+  .stat-value { font-size: 20px; font-weight: 600; color: #111; }
+  .stat-value.red { color: #c0392b; }
+  .item-card { background: #fff; border-radius: 14px; border: 0.5px solid #e8e8e8; padding: 12px 14px; margin-bottom: 8px; display: flex; align-items: center; gap: 12px; }
+  .item-icon { width: 40px; height: 40px; border-radius: 10px; background: #eaf3de; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .item-icon i { font-size: 20px; color: #3b6d11; }
+  .item-icon.ai { background: #eeedfe; }
+  .item-icon.ai i { color: #534ab7; }
+  .item-info { flex: 1; min-width: 0; }
+  .item-name { font-size: 14px; font-weight: 600; color: #111; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .item-sub { font-size: 12px; color: #999; margin-top: 2px; }
+  .item-right { text-align: right; flex-shrink: 0; }
+  .item-qty { font-size: 20px; font-weight: 600; color: #111; }
+  .item-qty.low { color: #c0392b; }
+  .item-unit { font-size: 11px; color: #999; }
+  .search-bar { width: 100%; padding: 10px 14px; border: 0.5px solid #ddd; border-radius: 10px; font-size: 14px; background: #fff; color: #111; margin-bottom: 12px; font-family: inherit; }
+  .search-bar:focus { outline: none; border-color: #378add; }
+
+  /* 이력 */
+  .log-item { display: flex; gap: 10px; align-items: flex-start; padding: 11px 0; border-bottom: 0.5px solid #f0f0f0; }
+  .log-dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 6px; flex-shrink: 0; }
+  .log-dot.in { background: #27ae60; }
+  .log-dot.out { background: #e24b4a; }
+  .log-dot.ai { background: #7f77dd; }
+  .log-dot.new { background: #f39c12; }
+  .log-info { flex: 1; }
+  .log-name { font-size: 14px; color: #111; font-weight: 500; }
+  .log-detail { font-size: 12px; color: #999; margin-top: 2px; }
+  .log-qty { font-size: 14px; font-weight: 600; flex-shrink: 0; }
+  .log-qty.in { color: #27ae60; }
+  .log-qty.out { color: #e24b4a; }
+
+  .toast { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); background: rgba(30,30,30,0.92); color: #fff; padding: 11px 22px; border-radius: 22px; font-size: 14px; opacity: 0; transition: opacity 0.25s; pointer-events: none; white-space: nowrap; z-index: 9999; max-width: 90vw; }
+  .toast.show { opacity: 1; }
+  .empty { text-align: center; padding: 40px 20px; color: #bbb; }
+  .empty i { font-size: 48px; margin-bottom: 10px; display: block; }
+  .empty p { font-size: 14px; line-height: 1.6; }
+
+  /* 성공 애니메이션 */
+  .beep-flash { animation: flash 0.3s ease; }
+  @keyframes flash { 0%{opacity:1} 50%{opacity:0.3} 100%{opacity:1} }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="header">
+    <i class="ti ti-plant" style="font-size:24px; color:#3b6d11;"></i>
+    <h1>로컬푸드 재고관리</h1>
+    <button onclick="switchTab('settings')" style="border:none; background:none; cursor:pointer; padding:4px;">
+      <i class="ti ti-settings" style="font-size:20px; color:#aaa;"></i>
+    </button>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('scan')" id="tab-scan">
+      <i class="ti ti-scan"></i><span>스캔</span>
+    </button>
+    <button class="tab" onclick="switchTab('list')" id="tab-list">
+      <i class="ti ti-list"></i><span>재고목록</span>
+    </button>
+    <button class="tab" onclick="switchTab('log')" id="tab-log">
+      <i class="ti ti-history"></i><span>이력</span>
+    </button>
+    <button class="tab" onclick="switchTab('alert')" id="tab-alert">
+      <i class="ti ti-bell"></i><span>알림</span>
+    </button>
+  </div>
+
+  <div class="content">
+
+    <!-- 스캔 탭 -->
+    <div class="screen active" id="screen-scan">
+      <div class="mode-tabs">
+        <button class="mode-tab active" onclick="switchMode('barcode')" id="mode-barcode">
+          <i class="ti ti-barcode" style="font-size:14px;"></i> 바코드 스캔
+        </button>
+        <button class="mode-tab" onclick="switchMode('ai')" id="mode-ai">
+          <i class="ti ti-sparkles" style="font-size:14px;"></i> AI 라벨 인식
+        </button>
+      </div>
+
+      <!-- 바코드 모드 -->
+      <div id="barcode-mode">
+        <div class="card">
+          <div class="scanner-box" id="scannerBox">
+            <div id="interactive" class="viewport"></div>
+            <div class="scanner-overlay" id="scannerOverlay" style="display:none;">
+              <div class="scanner-frame">
+                <div class="corner tl"></div>
+                <div class="corner tr"></div>
+                <div class="corner bl"></div>
+                <div class="corner br"></div>
+              </div>
+              <div class="scanner-hint">바코드를 프레임 안에 맞춰주세요</div>
+            </div>
+            <div class="scanner-placeholder" id="scannerPlaceholder">
+              <i class="ti ti-barcode"></i>
+              <p>스캔 시작을 눌러주세요</p>
+            </div>
+          </div>
+          <button class="btn-primary" id="scanBtn" onclick="toggleScanner()">
+            <i class="ti ti-scan"></i> 스캔 시작
+          </button>
+        </div>
+
+        <div id="barcodeResult" style="display:none;">
+          <div class="result-card">
+            <div class="result-barcode" id="resultBarcode"></div>
+            <div class="result-name" id="resultName"></div>
+            <div class="result-stock">현재 재고: <span id="resultStock">0</span>개</div>
+          </div>
+          <div class="qty-row">
+            <span class="qty-label">수량</span>
+            <div class="qty-ctrl">
+              <button onclick="adjustQty(-1)">−</button>
+              <span id="qtyDisplay">1</span>
+              <button onclick="adjustQty(1)">＋</button>
+            </div>
+          </div>
+          <div class="btn-row">
+            <button class="btn-half" onclick="resetBarcode()"><i class="ti ti-x"></i> 취소</button>
+            <button class="btn-half green" onclick="stockIn()"><i class="ti ti-plus"></i> 입고</button>
+            <button class="btn-half red" onclick="stockOut()"><i class="ti ti-minus"></i> 출고</button>
+          </div>
+        </div>
+
+        <!-- 신규 상품 등록 -->
+        <div id="newProductForm" style="display:none;">
+          <div class="card">
+            <div class="card-title"><i class="ti ti-plus"></i> 신규 상품 등록</div>
+            <div class="form-row">
+              <div class="form-label">바코드</div>
+              <input class="form-input" id="newBarcode" type="text" readonly>
+            </div>
+            <div class="form-row">
+              <div class="form-label">상품명 *</div>
+              <input class="form-input" id="newName" type="text" placeholder="상품명 입력">
+            </div>
+            <div class="form-row">
+              <div class="form-label">중량/용량</div>
+              <input class="form-input" id="newWeight" type="text" placeholder="예: 500g">
+            </div>
+            <div class="form-row">
+              <div class="form-label">가격</div>
+              <input class="form-input" id="newPrice" type="text" placeholder="예: 3,500원">
+            </div>
+            <div class="form-row">
+              <div class="form-label">초기 재고</div>
+              <input class="form-input" id="newQty" type="number" value="1" min="0">
+            </div>
+            <div class="btn-row" style="margin-top:12px;">
+              <button class="btn-half" onclick="cancelNewProduct()"><i class="ti ti-x"></i> 취소</button>
+              <button class="btn-half green" onclick="saveNewProduct()"><i class="ti ti-check"></i> 등록</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- AI 라벨 모드 -->
+      <div id="ai-mode" style="display:none;">
+        <div class="card">
+          <div class="card-title"><i class="ti ti-key"></i> Gemini API 키</div>
+          <div class="ai-key-row">
+            <input class="ai-key-input" type="password" id="geminiKey" placeholder="AIza... (aistudio.google.com에서 발급)" value="">
+            <button class="btn-half green" onclick="saveGeminiKey()" style="flex:0; white-space:nowrap; padding:10px 14px;">저장</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title"><i class="ti ti-sparkles"></i> 라벨 사진 올리기</div>
+          <img id="previewImg" src="" alt="미리보기">
+          <div class="upload-area" onclick="document.getElementById('fileInput').click()">
+            <i class="ti ti-photo-up"></i>
+            <p>사진 선택 또는 촬영</p>
+          </div>
+          <input type="file" id="fileInput" accept="image/*" onchange="handleFileUpload(event)">
+        </div>
+        <div class="thinking" id="thinkingBox" style="display:none;">
+          <i class="ti ti-cpu"></i>
+          <p>AI가 라벨을 분석하고 있어요<span class="dot-anim"></span></p>
+        </div>
+        <div id="aiResultBox" style="display:none;">
+          <div class="card">
+            <div class="card-title"><i class="ti ti-sparkles"></i> 인식 결과 (수정 가능)</div>
+            <div class="ai-result">
+              <div class="ai-result-row"><span class="ai-result-label">상품명</span><span class="ai-result-val"><input id="r-name" type="text"></span></div>
+              <div class="ai-result-row"><span class="ai-result-label">중량</span><span class="ai-result-val"><input id="r-weight" type="text"></span></div>
+              <div class="ai-result-row"><span class="ai-result-label">원산지</span><span class="ai-result-val"><input id="r-origin" type="text"></span></div>
+              <div class="ai-result-row"><span class="ai-result-label">가격</span><span class="ai-result-val"><input id="r-price" type="text"></span></div>
+              <div class="ai-result-row"><span class="ai-result-label">유통기한</span><span class="ai-result-val"><input id="r-expiry" type="text"></span></div>
+              <div class="ai-result-row"><span class="ai-result-label">바코드</span><span class="ai-result-val"><input id="r-barcode" type="text"></span></div>
+            </div>
+            <div class="qty-row">
+              <span class="qty-label">입고 수량</span>
+              <div class="qty-ctrl">
+                <button onclick="adjustAiQty(-1)">−</button>
+                <span id="aiQtyDisplay">1</span>
+                <button onclick="adjustAiQty(1)">＋</button>
+              </div>
+            </div>
+            <div class="btn-row">
+              <button class="btn-half" onclick="resetAI()"><i class="ti ti-x"></i> 다시</button>
+              <button class="btn-half green" onclick="registerAIProduct()"><i class="ti ti-check"></i> 등록</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 재고 목록 -->
+    <div class="screen" id="screen-list">
+      <div class="stats-row">
+        <div class="stat-card">
+          <div class="stat-label">전체</div>
+          <div class="stat-value" id="statTotal">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">부족</div>
+          <div class="stat-value red" id="statLow">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">총 재고</div>
+          <div class="stat-value" id="statSum">0</div>
+        </div>
+      </div>
+      <input class="search-bar" type="text" id="searchInput" placeholder="🔍  상품명 검색..." oninput="renderList()">
+      <div id="itemList"></div>
+    </div>
+
+    <!-- 이력 -->
+    <div class="screen" id="screen-log">
+      <div class="card">
+        <div id="logList"><div class="empty"><i class="ti ti-history"></i><p>이력이 없습니다</p></div></div>
+      </div>
+    </div>
+
+    <!-- 알림 -->
+    <div class="screen" id="screen-alert">
+      <div class="card" style="margin-bottom:12px;">
+        <div class="card-title"><i class="ti ti-alert-triangle"></i> 재고 부족 상품</div>
+        <div id="alertList"></div>
+      </div>
+      <div class="card">
+        <div class="card-title"><i class="ti ti-settings"></i> 부족 기준</div>
+        <div style="display:flex; align-items:center; gap:12px; margin-top:4px;">
+          <input type="range" min="1" max="30" value="5" id="alertThreshold" step="1"
+            oninput="document.getElementById('thresholdVal').textContent=this.value; renderAlert(); renderList();">
+          <span style="font-size:18px; font-weight:600; min-width:28px;" id="thresholdVal">5</span>
+          <span style="font-size:13px; color:#999;">개 이하</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 설정 -->
+    <div class="screen" id="screen-settings">
+      <div class="card">
+        <div class="card-title"><i class="ti ti-database"></i> 데이터 관리</div>
+        <button class="btn-primary red" onclick="clearAll()" style="margin-top:4px;">
+          <i class="ti ti-trash"></i> 전체 데이터 초기화
+        </button>
+      </div>
+    </div>
+
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+let inventory = JSON.parse(localStorage.getItem('lf_inv') || '[]');
+let logs = JSON.parse(localStorage.getItem('lf_logs') || '[]');
+let qtyVal = 1;
+let aiQtyVal = 1;
+let currentBarcode = null;
+let scannerRunning = false;
+let lastScanned = '';
+let lastScannedTime = 0;
+
+// 탭 전환
+function switchTab(tab) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('screen-' + tab).classList.add('active');
+  const tabEl = document.getElementById('tab-' + tab);
+  if (tabEl) tabEl.classList.add('active');
+  if (tab !== 'scan' && scannerRunning) stopScanner();
+  if (tab === 'list') renderList();
+  if (tab === 'log') renderLog();
+  if (tab === 'alert') renderAlert();
+}
+
+// 모드 전환 (바코드 / AI)
+function switchMode(mode) {
+  document.querySelectorAll('.mode-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('mode-' + mode).classList.add('active');
+  document.getElementById('barcode-mode').style.display = mode === 'barcode' ? 'block' : 'none';
+  document.getElementById('ai-mode').style.display = mode === 'ai' ? 'block' : 'none';
+  if (mode !== 'barcode' && scannerRunning) stopScanner();
+
+  // 저장된 Gemini 키 불러오기
+  if (mode === 'ai') {
+    const key = localStorage.getItem('lf_gemini') || '';
+    document.getElementById('geminiKey').value = key;
+  }
+}
+
+// ===== 바코드 스캐너 =====
+function toggleScanner() {
+  if (scannerRunning) { stopScanner(); return; }
+  startScanner();
+}
+
+function startScanner() {
+  document.getElementById('scannerPlaceholder').style.display = 'none';
+  document.getElementById('scannerOverlay').style.display = 'flex';
+  document.getElementById('scanBtn').innerHTML = '<i class="ti ti-player-stop"></i> 스캔 중지';
+  document.getElementById('scanBtn').classList.add('red');
+  document.getElementById('barcodeResult').style.display = 'none';
+  document.getElementById('newProductForm').style.display = 'none';
+
+  Quagga.init({
+    inputStream: {
+      name: 'Live',
+      type: 'LiveStream',
+      target: document.getElementById('interactive'),
+      constraints: { facingMode: 'environment', width: 640, height: 480 }
+    },
+    decoder: {
+      readers: ['ean_reader', 'ean_8_reader', 'code_128_reader', 'code_39_reader', 'upc_reader']
+    },
+    locate: true
+  }, err => {
+    if (err) { showToast('카메라 권한을 허용해주세요'); resetScanBtn(); return; }
+    Quagga.start();
+    scannerRunning = true;
+  });
+
+  Quagga.onDetected(onBarcodeDetected);
+}
+
+function stopScanner() {
+  Quagga.offDetected(onBarcodeDetected);
+  Quagga.stop();
+  scannerRunning = false;
+  resetScanBtn();
+}
+
+function resetScanBtn() {
+  document.getElementById('scannerPlaceholder').style.display = 'flex';
+  document.getElementById('scannerOverlay').style.display = 'none';
+  document.getElementById('scanBtn').innerHTML = '<i class="ti ti-scan"></i> 스캔 시작';
+  document.getElementById('scanBtn').classList.remove('red');
+  scannerRunning = false;
+}
+
+function onBarcodeDetected(result) {
+  const code = result.codeResult.code;
+  const now = Date.now();
+  // 중복 방지: 같은 코드 2초 안에 재인식 무시
+  if (code === lastScanned && now - lastScannedTime < 2000) return;
+  lastScanned = code;
+  lastScannedTime = now;
+
+  stopScanner();
+  processBarcode(code);
+  // 진동 피드백
+  if (navigator.vibrate) navigator.vibrate(100);
+}
+
+function processBarcode(code) {
+  currentBarcode = code;
+  const product = inventory.find(p => p.barcode === code);
+  if (product) {
+    document.getElementById('resultBarcode').textContent = code;
+    document.getElementById('resultName').textContent = product.name + (product.weight ? ' · ' + product.weight : '');
+    document.getElementById('resultStock').textContent = product.qty;
+    qtyVal = 1;
+    document.getElementById('qtyDisplay').textContent = 1;
+    document.getElementById('barcodeResult').style.display = 'block';
+    document.getElementById('newProductForm').style.display = 'none';
+    showToast('✓ ' + product.name);
+  } else {
+    // 미등록 상품
+    document.getElementById('newBarcode').value = code;
+    document.getElementById('newName').value = '';
+    document.getElementById('newWeight').value = '';
+    document.getElementById('newPrice').value = '';
+    document.getElementById('newQty').value = 1;
+    document.getElementById('barcodeResult').style.display = 'none';
+    document.getElementById('newProductForm').style.display = 'block';
+    showToast('미등록 상품 - 정보를 입력해주세요');
+  }
+}
+
+function adjustQty(delta) {
+  qtyVal = Math.max(1, qtyVal + delta);
+  document.getElementById('qtyDisplay').textContent = qtyVal;
+}
+
+function stockIn() {
+  const product = inventory.find(p => p.barcode === currentBarcode);
+  if (!product) return;
+  product.qty += qtyVal;
+  logs.unshift({ time: new Date().toLocaleString('ko-KR'), name: product.name, type: 'in', qty: qtyVal, barcode: currentBarcode });
+  saveData();
+  showToast('+' + qtyVal + '개 입고 완료');
+  document.getElementById('resultStock').textContent = product.qty;
+  document.getElementById('barcodeResult').classList.add('beep-flash');
+  setTimeout(() => document.getElementById('barcodeResult').classList.remove('beep-flash'), 300);
+}
+
+function stockOut() {
+  const product = inventory.find(p => p.barcode === currentBarcode);
+  if (!product) return;
+  if (product.qty < qtyVal) { showToast('재고가 부족합니다'); return; }
+  product.qty -= qtyVal;
+  logs.unshift({ time: new Date().toLocaleString('ko-KR'), name: product.name, type: 'out', qty: qtyVal, barcode: currentBarcode });
+  saveData();
+  showToast('-' + qtyVal + '개 출고 완료');
+  document.getElementById('resultStock').textContent = product.qty;
+}
+
+function resetBarcode() {
+  document.getElementById('barcodeResult').style.display = 'none';
+  document.getElementById('newProductForm').style.display = 'none';
+  currentBarcode = null;
+}
+
+function saveNewProduct() {
+  const name = document.getElementById('newName').value.trim();
+  if (!name) { showToast('상품명을 입력해주세요'); return; }
+  const barcode = document.getElementById('newBarcode').value.trim() || ('BC-' + Date.now());
+  const qty = parseInt(document.getElementById('newQty').value) || 0;
+  inventory.push({
+    barcode, name,
+    weight: document.getElementById('newWeight').value.trim(),
+    price: document.getElementById('newPrice').value.trim(),
+    qty, aiRegistered: false,
+    registeredAt: new Date().toLocaleString('ko-KR')
+  });
+  logs.unshift({ time: new Date().toLocaleString('ko-KR'), name, type: 'new', qty, barcode });
+  saveData();
+  showToast('✓ ' + name + ' 등록 완료!');
+  document.getElementById('newProductForm').style.display = 'none';
+  currentBarcode = null;
+}
+
+function cancelNewProduct() {
+  document.getElementById('newProductForm').style.display = 'none';
+  currentBarcode = null;
+}
+
+// ===== AI 라벨 인식 =====
+function saveGeminiKey() {
+  const key = document.getElementById('geminiKey').value.trim();
+  if (!key) { showToast('키를 입력해주세요'); return; }
+  localStorage.setItem('lf_gemini', key);
+  showToast('✓ API 키 저장됨');
+}
+
+function handleFileUpload(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const img = document.getElementById('previewImg');
+    img.src = ev.target.result;
+    img.style.display = 'block';
+    document.getElementById('aiResultBox').style.display = 'none';
+    analyzeLabel(ev.target.result);
+  };
+  reader.readAsDataURL(file);
+}
+
+async function analyzeLabel(dataUrl) {
+  const key = localStorage.getItem('lf_gemini') || document.getElementById('geminiKey').value.trim();
+  if (!key) { showToast('Gemini API 키를 먼저 입력해주세요'); return; }
+  document.getElementById('thinkingBox').style.display = 'flex';
+  const base64 = dataUrl.split(',')[1];
+  const mimeType = dataUrl.startsWith('data:image/png') ? 'image/png' : 'image/jpeg';
+  try {
+    const resp = await fetch(
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + key,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [
+            { inline_data: { mime_type: mimeType, data: base64 } },
+            { text: '이 이미지는 식품 라벨 또는 상품 사진입니다. 보이는 정보를 추출해서 반드시 아래 JSON 형식으로만 응답하세요. 마크다운 없이 순수 JSON만.\n\n{"name":"상품명","weight":"중량","origin":"원산지","price":"가격","expiry":"유통기한","barcode":"바코드 번호","confidence":"high 또는 mid 또는 low"}' }
+          ]}],
+          generationConfig: { temperature: 0.1 }
+        })
+      }
+    );
+    const data = await resp.json();
+    document.getElementById('thinkingBox').style.display = 'none';
+    if (data.error) { showToast('오류: ' + data.error.message); return; }
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    let parsed;
+    try { parsed = JSON.parse(text.replace(/```json|```/g, '').trim()); }
+    catch(e) { parsed = { name:'', weight:'', origin:'', price:'', expiry:'', barcode:'' }; }
+    document.getElementById('r-name').value = parsed.name || '';
+    document.getElementById('r-weight').value = parsed.weight || '';
+    document.getElementById('r-origin').value = parsed.origin || '';
+    document.getElementById('r-price').value = parsed.price || '';
+    document.getElementById('r-expiry').value = parsed.expiry || '';
+    document.getElementById('r-barcode').value = parsed.barcode || '';
+    aiQtyVal = 1;
+    document.getElementById('aiQtyDisplay').textContent = 1;
+    document.getElementById('aiResultBox').style.display = 'block';
+  } catch(err) {
+    document.getElementById('thinkingBox').style.display = 'none';
+    showToast('분석 오류가 발생했습니다');
+  }
+}
+
+function adjustAiQty(delta) {
+  aiQtyVal = Math.max(1, aiQtyVal + delta);
+  document.getElementById('aiQtyDisplay').textContent = aiQtyVal;
+}
+
+function registerAIProduct() {
+  const name = document.getElementById('r-name').value.trim();
+  if (!name) { showToast('상품명을 입력해주세요'); return; }
+  const barcode = document.getElementById('r-barcode').value.trim() || ('AI-' + Date.now());
+  const existing = inventory.findIndex(p => p.barcode === barcode);
+  if (existing >= 0) {
+    inventory[existing].qty += aiQtyVal;
+    showToast(name + ' 재고 ' + aiQtyVal + '개 추가');
+  } else {
+    inventory.push({
+      barcode, name,
+      weight: document.getElementById('r-weight').value.trim(),
+      origin: document.getElementById('r-origin').value.trim(),
+      price: document.getElementById('r-price').value.trim(),
+      expiry: document.getElementById('r-expiry').value.trim(),
+      qty: aiQtyVal, aiRegistered: true,
+      registeredAt: new Date().toLocaleString('ko-KR')
+    });
+    showToast('✓ ' + name + ' 등록 완료!');
+  }
+  logs.unshift({ time: new Date().toLocaleString('ko-KR'), name, type: 'ai', qty: aiQtyVal, barcode });
+  if (logs.length > 200) logs.pop();
+  saveData();
+  resetAI();
+}
+
+function resetAI() {
+  document.getElementById('previewImg').style.display = 'none';
+  document.getElementById('previewImg').src = '';
+  document.getElementById('aiResultBox').style.display = 'none';
+  document.getElementById('thinkingBox').style.display = 'none';
+  document.getElementById('fileInput').value = '';
+}
+
+// ===== 재고 목록 =====
+function renderList() {
+  const q = (document.getElementById('searchInput').value || '').toLowerCase();
+  const threshold = parseInt(document.getElementById('alertThreshold')?.value || 5);
+  const filtered = inventory.filter(p => !q || p.name.toLowerCase().includes(q));
+  const lowCount = inventory.filter(p => p.qty <= threshold).length;
+  const totalQty = inventory.reduce((s, p) => s + p.qty, 0);
+  document.getElementById('statTotal').textContent = inventory.length;
+  document.getElementById('statLow').textContent = lowCount;
+  document.getElementById('statSum').textContent = totalQty;
+  if (!filtered.length) {
+    document.getElementById('itemList').innerHTML = '<div class="empty"><i class="ti ti-leaf"></i><p>등록된 상품이 없습니다<br>바코드 스캔 또는 AI 라벨 인식으로 추가해보세요</p></div>';
+    return;
+  }
+  document.getElementById('itemList').innerHTML = filtered.map(p => `
+    <div class="item-card">
+      <div class="item-icon ${p.aiRegistered ? 'ai' : ''}">
+        <i class="ti ${p.aiRegistered ? 'ti-cpu' : 'ti-leaf'}"></i>
+      </div>
+      <div class="item-info">
+        <div class="item-name">${p.name}${p.weight ? ' · ' + p.weight : ''}</div>
+        <div class="item-sub">${p.price || ''}${p.origin ? ' · ' + p.origin : ''}</div>
+      </div>
+      <div class="item-right">
+        <div class="item-qty ${p.qty <= threshold ? 'low' : ''}">${p.qty}</div>
+        <div class="item-unit">개</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function renderLog() {
+  if (!logs.length) { document.getElementById('logList').innerHTML = '<div class="empty"><i class="ti ti-history"></i><p>이력이 없습니다</p></div>'; return; }
+  document.getElementById('logList').innerHTML = logs.slice(0, 50).map(l => `
+    <div class="log-item">
+      <div class="log-dot ${l.type}"></div>
+      <div class="log-info">
+        <div class="log-name">${l.name}</div>
+        <div class="log-detail">${l.time} · ${l.type === 'in' ? '입고' : l.type === 'out' ? '출고' : l.type === 'ai' ? 'AI 등록' : '신규 등록'}</div>
+      </div>
+      <div class="log-qty ${l.type === 'out' ? 'out' : 'in'}">${l.type === 'out' ? '-' : '+'}${l.qty}개</div>
+    </div>
+  `).join('');
+}
+
+function renderAlert() {
+  const threshold = parseInt(document.getElementById('alertThreshold').value || 5);
+  const low = inventory.filter(p => p.qty <= threshold);
+  document.getElementById('alertList').innerHTML = !low.length
+    ? '<p style="font-size:14px; color:#27ae60; padding:8px 0;">✓ 모든 상품 재고가 충분합니다</p>'
+    : low.map(p => `
+      <div style="display:flex; align-items:center; gap:10px; padding:10px 0; border-bottom:0.5px solid #f0f0f0;">
+        <i class="ti ti-alert-triangle" style="font-size:18px; color:#c0392b;"></i>
+        <div style="flex:1; font-size:14px; color:#111;">${p.name}</div>
+        <div style="font-size:14px; font-weight:600; color:#c0392b;">${p.qty}개</div>
+      </div>
+    `).join('');
+}
+
+function saveData() {
+  if (logs.length > 200) logs = logs.slice(0, 200);
+  localStorage.setItem('lf_inv', JSON.stringify(inventory));
+  localStorage.setItem('lf_logs', JSON.stringify(logs));
+}
+
+function clearAll() {
+  if (!confirm('전체 데이터를 초기화할까요?')) return;
+  inventory = []; logs = [];
+  saveData();
+  showToast('초기화 완료');
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+renderAlert();
+</script>
+</body>
+</html>
